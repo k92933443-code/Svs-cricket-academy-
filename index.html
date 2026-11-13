@@ -103,6 +103,10 @@ header.solid{background:rgba(5,8,15,.88);backdrop-filter:blur(14px);-webkit-back
 .tile .mk svg{width:22px;height:22px}
 .f1{background-image:linear-gradient(135deg,#0f5a31,#071426)}.f2{background-image:linear-gradient(135deg,#17386b,#071426)}.f3{background-image:linear-gradient(135deg,#5a4a10,#071426)}
 .f4{background-image:linear-gradient(135deg,#0c6b3c,#05080F)}.f5{background-image:linear-gradient(135deg,#1d2f57,#05080F)}.f6{background-image:linear-gradient(135deg,#4a3d0c,#0f5a31)}
+section[hidden]{display:none}
+.coach{display:grid;gap:22px;align-items:center}
+.cph{aspect-ratio:4/5;width:100%;max-width:420px;border-radius:var(--r);border:1px solid var(--line)}
+@media(min-width:760px){.coach{grid-template-columns:.8fr 1.2fr;gap:44px}}
 /* why */
 .why{background:radial-gradient(700px 400px at 100% 0,rgba(214,179,63,.14),transparent 60%),radial-gradient(700px 400px at 0 100%,rgba(22,199,106,.16),transparent 60%),var(--navy)}
 .why .card{border-left:3px solid var(--green)}
@@ -238,6 +242,13 @@ footer a:hover{color:var(--green)}
 </div>
 </section>
 
+<section id="coach" hidden>
+<div class="wrap"><div class="coach">
+<div class="ph f1 cph" id="cph" role="img" aria-label="Academy coach"></div>
+<div><h2>Meet your <span class="g">coach</span></h2><h3 id="cn"></h3><p id="cb"></p></div>
+</div></div>
+</section>
+
 <section class="why" id="facilities">
 <div class="wrap">
 <h2 class="rv">Build your game.<br><span class="g">Build your future.</span></h2>
@@ -344,7 +355,16 @@ var hd=$('#hd'),up=$('#up'),ov=$('#ov'),bg=$('#bg');
 
 /* Photos: real image is painted over the gradient fallback only if the file loads */
 function paint(el,src,cb){var i=new Image();i.onload=function(){el.style.backgroundImage='linear-gradient(rgba(0,0,0,0),rgba(0,0,0,0)),url("'+src+'")';if(cb)cb(true)};i.onerror=function(){if(cb)cb(false)};i.src=src}
-document.querySelectorAll('[data-img]').forEach(function(el){var s=el.getAttribute('data-img');if(s)paint(el,s)});
+document.querySelectorAll('[data-img]').forEach(function(el){var s=el.getAttribute('data-img');if(s){el.setAttribute('data-slot',s.replace(/^images\//,'').replace(/\.jpg$/,''));paint(el,s)}});
+/* Photos uploaded from the admin panel replace the local files */
+if(sb)sb.from('site_images').select('slot,url,title,details').then(function(r){
+  if(r.error||!r.data)return;
+  r.data.forEach(function(x){
+    if(!x.url)return;
+    if(x.slot==='coach'){paint($('#cph'),x.url,function(ok){if(!ok)return;$('#cn').textContent=x.title||'';$('#cb').textContent=x.details||'';$('#coach').hidden=false});return}
+    document.querySelectorAll('[data-slot="'+x.slot+'"]').forEach(function(el){el.setAttribute('data-img',x.url);paint(el,x.url)});
+  });
+});
 
 window.addEventListener('load',function(){setTimeout(function(){$('#ld').classList.add('off')},250)});
 setTimeout(function(){$('#ld').classList.add('off')},2200);

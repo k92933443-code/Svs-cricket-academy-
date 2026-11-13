@@ -30,6 +30,16 @@ td select{min-height:36px;padding:4px 8px}
 .m{color:var(--mute)}
 #msg{margin:10px 0;min-height:1.3em;font-weight:600}.ok{color:var(--green)}.no{color:#ff9a9a}
 [hidden]{display:none!important}
+.tabs{display:flex;gap:8px;margin-bottom:14px}
+.tabs button.on{background:var(--gold);color:#1a1400}
+.pg{display:grid;gap:14px;grid-template-columns:1fr}
+@media(min-width:700px){.pg{grid-template-columns:repeat(2,1fr)}}
+@media(min-width:1000px){.pg{grid-template-columns:repeat(3,1fr)}}
+.pc{background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:14px;padding:14px;display:grid;gap:10px}
+.pc h3{font-size:1.05rem}
+.pv{aspect-ratio:16/10;border-radius:10px;border:1px dashed var(--line);display:grid;place-items:center;color:var(--mute);overflow:hidden;background:rgba(0,0,0,.3)}
+.pv img{width:100%;height:100%;object-fit:cover}
+#pm{margin:10px 0;min-height:1.3em;font-weight:600}
 </style>
 </head>
 <body>
@@ -44,6 +54,8 @@ td select{min-height:36px;padding:4px 8px}
 
 <section id="app" hidden>
 <div class="bar"><h1>Admission <span>enquiries</span></h1><div><span id="ct" class="m"></span> <button class="g" id="lo" type="button">Sign out</button></div></div>
+<div class="tabs"><button type="button" data-t="pe">Enquiries</button><button type="button" class="g" data-t="pp">Photos</button></div>
+<div id="pe">
 <div class="tools">
 <input id="q" type="search" placeholder="Search student name">
 <select id="pf"><option value="">All programs</option><option>Beginner Cricket Training</option><option>Advanced Cricket Training</option><option>Batting Coaching</option><option>Bowling Coaching</option><option>Fielding Practice</option><option>Fitness and Conditioning</option></select>
@@ -51,6 +63,12 @@ td select{min-height:36px;padding:4px 8px}
 </div>
 <p id="msg" role="status"></p>
 <div class="tw"><table><thead><tr><th>Date</th><th>Student</th><th>Age</th><th>Parent</th><th>Mobile</th><th>Email</th><th>Program</th><th>Experience</th><th>Message</th><th>Status</th><th></th></tr></thead><tbody id="tb"></tbody></table></div>
+</div>
+<div id="pp" hidden>
+<p class="m">Upload the academy and coach photos here. They appear on the website straight away. Large photos are shrunk automatically.</p>
+<p id="pm" role="status"></p>
+<div class="pg" id="pg"></div>
+</div>
 </section>
 </div>
 
@@ -120,6 +138,79 @@ async function load(){
 var t;$('#q').addEventListener('input',function(){clearTimeout(t);t=setTimeout(load,350)});
 $('#pf').addEventListener('change',load);$('#rf').addEventListener('click',load);
 $('#pw').addEventListener('keydown',function(e){if(e.key==='Enter')$('#li').click()});
+
+/* ---------- Photos ---------- */
+var SLOTS=[['hero','Hero background (wide photo)'],['coach','Coach photo'],['batting','Batting training'],['bowling','Bowling training'],['fielding','Fielding training'],['beginner','Beginner training'],['advanced','Advanced training'],['fitness','Fitness training'],['gallery-1','Gallery: Cricket practice (wide)'],['gallery-2','Gallery: Batsmen training'],['gallery-3','Gallery: Bowling sessions'],['gallery-4','Gallery: Fielding practice'],['gallery-5','Gallery: Cricket ground / academy'],['gallery-6','Gallery: Academy activities (wide)']];
+var cur={};
+function pm(t,c){var m=$('#pm');m.textContent=t||'';m.className=c||''}
+function resize(file){return new Promise(function(res,rej){
+  var im=new Image(),u=URL.createObjectURL(file);
+  im.onload=function(){var s=Math.min(1,1600/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*s);c.height=Math.round(im.height*s);c.getContext('2d').drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(u);c.toBlob(function(b){b?res(b):rej(new Error('Could not process the image'))},'image/jpeg',.86)};
+  im.onerror=function(){rej(new Error('This file is not a valid image'))};im.src=u})}
+function oldPath(u){var i=u.indexOf('/site-media/');return i>0?u.slice(i+12).split('?')[0]:null}
+async function save(slot,file,x){
+  var row=cur[slot]||{},url=row.url;
+  if(file){
+    if(!/^image\//.test(file.type))throw new Error('Please choose an image file');
+    var blob=await resize(file),path=slot+'-'+Date.now()+'.jpg';
+    var u=await sb.storage.from('site-media').upload(path,blob,{contentType:'image/jpeg',cacheControl:'31536000'});
+    if(u.error)throw u.error;
+    url=sb.storage.from('site-media').getPublicUrl(path).data.publicUrl;
+  }
+  if(!url)throw new Error('Choose a photo first');
+  var w=await sb.from('site_images').upsert({slot:slot,url:url,title:x.title||null,details:x.details||null,updated_at:new Date().toISOString()});
+  if(w.error)throw w.error;
+  if(file&&row.url){var p=oldPath(row.url);if(p)sb.storage.from('site-media').remove([p])}
+}
+async function loadPhotos(){
+  var r=await sb.from('site_images').select('*');
+  if(r.error){pm('Could not load photos: '+r.error.message,'no');return}
+  cur={};r.data.forEach(function(x){cur[x.slot]=x});draw();
+}
+function draw(){
+  var g=$('#pg');g.innerHTML='';
+  SLOTS.forEach(function(s){
+    var slot=s[0],row=cur[slot]||{},c=document.createElement('div');c.className='pc';
+    var h=document.createElement('h3');h.textContent=s[1];c.appendChild(h);
+    var v=document.createElement('div');v.className='pv';
+    if(row.url){var im=document.createElement('img');im.src=row.url;im.alt=s[1];v.appendChild(im)}else v.textContent='No photo yet';
+    c.appendChild(v);
+    var f=document.createElement('input');f.type='file';f.accept='image/*';c.appendChild(f);
+    var n=null,b=null;
+    if(slot==='coach'){
+      n=document.createElement('input');n.placeholder='Coach name';n.maxLength=100;n.value=row.title||'';c.appendChild(n);
+      b=document.createElement('input');b.placeholder='Short intro (optional)';b.maxLength=500;b.value=row.details||'';c.appendChild(b);
+    }
+    var sv=document.createElement('button');sv.type='button';sv.textContent=row.url?'Save / replace':'Upload';
+    sv.addEventListener('click',async function(){
+      sv.disabled=true;pm('Saving…');
+      try{await save(slot,f.files[0],{title:n&&n.value.trim(),details:b&&b.value.trim()});pm('Saved. The website now shows it.','ok');await loadPhotos()}
+      catch(e){console.error(e);pm('Could not save: '+(e.message||e),'no');sv.disabled=false}
+    });
+    c.appendChild(sv);
+    if(row.url){
+      var rm=document.createElement('button');rm.type='button';rm.className='d';rm.textContent='Remove photo';
+      rm.addEventListener('click',async function(){
+        if(!confirm('Remove this photo from the website?'))return;
+        var d=await sb.from('site_images').delete().eq('slot',slot);
+        if(d.error){pm('Could not remove: '+d.error.message,'no');return}
+        var p=oldPath(row.url);if(p)sb.storage.from('site-media').remove([p]);
+        pm('Photo removed.','ok');loadPhotos();
+      });
+      c.appendChild(rm);
+    }
+    g.appendChild(c);
+  });
+}
+document.querySelectorAll('.tabs button').forEach(function(b){
+  b.addEventListener('click',function(){
+    var t=b.getAttribute('data-t');
+    document.querySelectorAll('.tabs button').forEach(function(x){x.classList.toggle('g',x!==b);x.classList.toggle('on',x===b)});
+    $('#pe').hidden=t!=='pe';$('#pp').hidden=t!=='pp';
+    if(t==='pp')loadPhotos();
+  });
+});
+document.querySelector('.tabs button').classList.add('on');
 gate();
 })();
 </script>

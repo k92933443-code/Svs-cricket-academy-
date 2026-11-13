@@ -1,4 +1,3 @@
-Put real cricket photos here (jpg), using these exact names:
-hero.jpg, batting.jpg, bowling.jpg, fielding.jpg, beginner.jpg, advanced.jpg, fitness.jpg,
-gallery-1.jpg ... gallery-6.jpg
-If a file is missing, the site shows a gradient fallback automatically.
+Optional: local fallback photos (jpg) with these names:
+hero.jpg, batting.jpg, bowling.jpg, fielding.jpg, beginner.jpg, advanced.jpg, fitness.jpg, gallery-1.jpg ... gallery-6.jpg
+Photos uploaded from /admin.html (Photos tab) override these automatically.

@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>SVS Cricket Academy | Admin</title>
+<style>
+:root{--navy:#071426;--black:#05080F;--green:#16C76A;--gold:#D6B33F;--line:rgba(255,255,255,.14);--mute:#a3b3c8}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,'Barlow',sans-serif;background:var(--black);color:#fff;min-height:100vh;font-size:16px}
+.wrap{width:min(1180px,100% - 24px);margin:0 auto;padding:20px 0 60px}
+h1{font:800 1.7rem 'Barlow Condensed','Arial Narrow',sans-serif;text-transform:uppercase;letter-spacing:.04em}
+h1 span{color:var(--gold)}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:18px}
+.box{background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:14px;padding:20px}
+input,select,button{font:inherit;font-size:16px;color:#fff;background:rgba(255,255,255,.08);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:44px}
+select option{color:#111}
+button{cursor:pointer;background:var(--green);color:#03150a;font-weight:700;border:0}
+button.g{background:transparent;color:#fff;border:1px solid var(--line)}
+button.d{background:#d64545;color:#fff;min-height:36px;padding:6px 12px}
+.login{max-width:380px;margin:12vh auto 0;display:grid;gap:12px}
+.tools{display:grid;gap:10px;grid-template-columns:1fr;margin-bottom:14px}
+@media(min-width:700px){.tools{grid-template-columns:2fr 1.5fr auto}}
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:14px}
+table{border-collapse:collapse;width:100%;min-width:860px}
+th,td{padding:11px 12px;text-align:left;border-bottom:1px solid var(--line);font-size:.93rem;vertical-align:top}
+th{color:var(--gold);font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;background:rgba(255,255,255,.04)}
+td select{min-height:36px;padding:4px 8px}
+.m{color:var(--mute)}
+#msg{margin:10px 0;min-height:1.3em;font-weight:600}.ok{color:var(--green)}.no{color:#ff9a9a}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+<section id="lg" class="box login">
+<h1>SVS <span>Admin</span></h1>
+<input id="em" type="email" placeholder="Admin email" autocomplete="username">
+<input id="pw" type="password" placeholder="Password" autocomplete="current-password">
+<button id="li" type="button">Sign in</button>
+<p id="le" class="no"></p>
+</section>
+
+<section id="app" hidden>
+<div class="bar"><h1>Admission <span>enquiries</span></h1><div><span id="ct" class="m"></span> <button class="g" id="lo" type="button">Sign out</button></div></div>
+<div class="tools">
+<input id="q" type="search" placeholder="Search student name">
+<select id="pf"><option value="">All programs</option><option>Beginner Cricket Training</option><option>Advanced Cricket Training</option><option>Batting Coaching</option><option>Bowling Coaching</option><option>Fielding Practice</option><option>Fitness and Conditioning</option></select>
+<button id="rf" type="button">Refresh</button>
+</div>
+<p id="msg" role="status"></p>
+<div class="tw"><table><thead><tr><th>Date</th><th>Student</th><th>Age</th><th>Parent</th><th>Mobile</th><th>Email</th><th>Program</th><th>Experience</th><th>Message</th><th>Status</th><th></th></tr></thead><tbody id="tb"></tbody></table></div>
+</section>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+(function(){
+'use strict';
+/* Publishable key only. Access is enforced by Row Level Security + the admin_users allow-list. */
+var sb=window.supabase.createClient('https://enyoftexfouekictxwxd.supabase.co','sb_publishable_sERZ7vpJdXs77zmzoUMVNw_3T25aYFw');
+var $=function(s){return document.querySelector(s)};
+var STATUS=['new','contacted','admitted','closed'];
+
+function say(t,c){var m=$('#msg');m.textContent=t||'';m.className=c||''}
+function show(on){$('#lg').hidden=on;$('#app').hidden=!on}
+
+async function gate(){
+  var s=await sb.auth.getSession();
+  if(!s.data.session){show(false);return}
+  var a=await sb.rpc('is_admin');
+  if(a.error||a.data!==true){await sb.auth.signOut();show(false);$('#le').textContent='This account is not authorised for admin access.';return}
+  show(true);load();
+}
+
+$('#li').addEventListener('click',async function(){
+  $('#le').textContent='';
+  var r=await sb.auth.signInWithPassword({email:$('#em').value.trim(),password:$('#pw').value});
+  if(r.error){$('#le').textContent='Sign-in failed. Check your email and password.';return}
+  $('#pw').value='';gate();
+});
+$('#lo').addEventListener('click',async function(){await sb.auth.signOut();$('#tb').innerHTML='';show(false)});
+
+async function load(){
+  say('Loading…');
+  var q=sb.from('admission_enquiries').select('*').order('created_at',{ascending:false}).limit(500);
+  var s=$('#q').value.trim().replace(/[%_,()]/g,'');
+  if(s)q=q.ilike('student_name','%'+s+'%');
+  if($('#pf').value)q=q.eq('training_program',$('#pf').value);
+  var r=await q;
+  if(r.error){say('Could not load enquiries: '+r.error.message,'no');return}
+  say('');$('#ct').textContent=r.data.length+' shown';
+  var tb=$('#tb');tb.innerHTML='';
+  r.data.forEach(function(e){
+    var tr=document.createElement('tr');
+    function td(t,cls){var c=document.createElement('td');c.textContent=t==null?'':t;if(cls)c.className=cls;tr.appendChild(c);return c}
+    td(new Date(e.created_at).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'}),'m');
+    td(e.student_name);td(e.age);td(e.parent_name);
+    var mc=td('');var a=document.createElement('a');a.href='tel:'+e.mobile_number;a.textContent=e.mobile_number;a.style.color='#16C76A';mc.appendChild(a);
+    td(e.email);td(e.training_program);td(e.cricket_experience);td(e.message,'m');
+    var sc=document.createElement('td'),sel=document.createElement('select');
+    STATUS.forEach(function(v){var o=document.createElement('option');o.value=v;o.textContent=v;if(v===e.status)o.selected=true;sel.appendChild(o)});
+    sel.addEventListener('change',async function(){
+      var u=await sb.from('admission_enquiries').update({status:sel.value}).eq('id',e.id);
+      if(u.error){say('Status not saved: '+u.error.message,'no');sel.value=e.status}else{e.status=sel.value;say('Status updated.','ok')}
+    });
+    sc.appendChild(sel);tr.appendChild(sc);
+    var dc=document.createElement('td'),db=document.createElement('button');db.className='d';db.textContent='Delete';
+    db.addEventListener('click',async function(){
+      if(!confirm('Delete the enquiry from '+e.student_name+'? This cannot be undone.'))return;
+      var x=await sb.from('admission_enquiries').delete().eq('id',e.id);
+      if(x.error){say('Delete failed: '+x.error.message,'no')}else{tr.remove();say('Enquiry deleted.','ok')}
+    });
+    dc.appendChild(db);tr.appendChild(dc);
+    tb.appendChild(tr);
+  });
+  if(!r.data.length)say('No enquiries found.');
+}
+var t;$('#q').addEventListener('input',function(){clearTimeout(t);t=setTimeout(load,350)});
+$('#pf').addEventListener('change',load);$('#rf').addEventListener('click',load);
+$('#pw').addEventListener('keydown',function(e){if(e.key==='Enter')$('#li').click()});
+gate();
+})();
+</script>
+</body>
+</html>

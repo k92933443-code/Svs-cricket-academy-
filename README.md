@@ -1,4 +1,4 @@
-# SVS Cricket Academy website
+# J M Cricket Academy website
 
 - index.html        : public website (Supabase admission form, photos from admin)
 - admin.html        : admin dashboard (enquiries + Photos tab for academy/coach photos)
